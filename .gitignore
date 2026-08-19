@@ -1,0 +1,22 @@
+# Notes to self
+/self/
+*.tmp
+
+# Build outputs
+c-shell/build
+c-shell/obj
+c-shell/shell.out
+c-shell/shell
+xv6/kernel.img
+xv6/fs.img
+
+# Compiler Files
+*.o
+*.a
+*.so
+
+# VSCode and Copilot
+.vscode/
+.idea/
+*.swp
+*.swo
