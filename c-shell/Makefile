@@ -23,18 +23,24 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
-	@echo "✓ Built $(TARGET)"
+	@echo "Built $(TARGET)"
 
 # Compile object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -c $< -o $@
-	@echo "✓ Compiled $<"
+	@echo "Compiled $<"
 
-# Clean build artifacts
+# # Clean build artifacts
+# clean:
+# 	rm -rf $(OBJ_DIR) $(TARGET)
+# 	@echo "Cleaned"
+
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
-	@echo "✓ Cleaned"
+	@if [ -d "$(OBJ_DIR)" ] && [ -e "$(TARGET)" ]; then \
+		rm -rf "$(OBJ_DIR)" "$(TARGET)"; \
+	fi
+	@echo "Cleaned"
 
 # Phony targets
 .PHONY: all clean
