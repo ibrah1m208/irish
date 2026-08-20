@@ -59,7 +59,6 @@ int main(int argc, char *argv[]) {
         if(strncmp("exit", line, 4) == 0) runtime = 0;
     }
 
-
     free(line);
     free(session_home_dir);
     return 0;
