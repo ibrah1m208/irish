@@ -45,17 +45,22 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
     
-    /* TODO: Implement loop */
     printf("initiate C shell\n\n\n");
     char *session_home_dir = getcwd(NULL, 0);
     int runtime = 1;
+    char *line = NULL;
+    size_t n = 0;
     while(runtime) {
         print_prompt(session_home_dir);
-        char input[256];
-        scanf("%s", input);
-        if(strncmp("exit", input, 4) == 0) runtime = 0;
+        if(getline(&line, &n, stdin) == -1) {
+            runtime = 0;
+            break;
+        }
+        if(strncmp("exit", line, 4) == 0) runtime = 0;
     }
 
+
+    free(line);
     free(session_home_dir);
     return 0;
 }
