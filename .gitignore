@@ -1,6 +1,7 @@
 # Notes to self
 /self/
 *.tmp
+01.md
 
 # Build outputs
 c-shell/build
