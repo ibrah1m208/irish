@@ -2,6 +2,7 @@
 /self/
 *.tmp
 01.md
+/test/
 
 # Build outputs
 c-shell/build

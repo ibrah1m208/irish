@@ -2,6 +2,7 @@
 #include "prompt.h"
 #include "lexer.h"
 #include "parser.h"
+#include "executor.h"
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -21,11 +22,6 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (strncmp("exit", line, 4) == 0){
-            runtime = 0;
-            continue;
-        }
-
         size_t token_count;
         Token *tokens = lexer_tokenize(line, &token_count);
         
@@ -36,11 +32,24 @@ int main(int argc, char *argv[]) {
 
         if (!parser_validate(tokens, token_count)){
             printf("cshell: invalid syntax\n");
+            for (size_t i = 0; i < token_count; i++) free(tokens[i].value);
+            free(tokens);
+            continue;
         }
 
-        /*
-        TODO: else -> pass tokens to the executor (Part C) 
-        */
+        if (token_count == 0) {
+            free(tokens);
+            continue;
+        }
+
+        if (token_count == 1 && strcmp(tokens[0].value, "exit") == 0){
+            for (size_t i = 0; i < token_count; i++) free(tokens[i].value);
+            free(tokens);
+            runtime = 0;
+            break;
+        }
+
+        executor_run(tokens, token_count);
 
         for (size_t i = 0; i < token_count; i++) free(tokens[i].value);
         free(tokens);
