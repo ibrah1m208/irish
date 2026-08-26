@@ -3,6 +3,7 @@
 *.tmp
 01.md
 /test/
+AI.md
 
 # Build outputs
 c-shell/build

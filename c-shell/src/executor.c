@@ -1,11 +1,13 @@
 #include "executor.h"
 #include "pipes.h"
 #include "redirect.h"
+#include "hop.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 static int is_executable(const char *path) {
     struct stat st;
@@ -178,16 +180,79 @@ int executor_run(const Token *tokens, size_t count) {
     }
     cmds[cmd_idx].argv[cmds[cmd_idx].argc] = NULL;
 
-    /* Delegate pipeline execution to pipes module */
+    if (num_cmds == 1 && cmds[0].argc > 0 && strcmp(cmds[0].argv[0], "hop") == 0) {
+        int ret = 0;
+        int saved_stdout = -1;
+        int saved_stdin = -1;
+        int in_fd = -1;
+        int out_fd = -1;
+        pid_t feeder_pid = -1;
+        pid_t dist_pid = -1;
+
+        if (cmds[0].num_inputs > 0) {
+            if (redirect_setup_input(cmds[0].input_files, cmds[0].num_inputs, &in_fd, &feeder_pid) < 0) {
+                ret = -1;
+                goto builtin_cleanup;
+            }
+            if (in_fd >= 0) {
+                saved_stdin = dup(STDIN_FILENO);
+                dup2(in_fd, STDIN_FILENO);
+                close(in_fd);
+            }
+        }
+
+        if (cmds[0].num_outputs > 0) {
+            if (redirect_setup_output(cmds[0].output_files, cmds[0].num_outputs, &out_fd, &dist_pid) < 0) {
+                if (saved_stdin >= 0) {
+                    dup2(saved_stdin, STDIN_FILENO);
+                    close(saved_stdin);
+                }
+                ret = -1;
+                goto builtin_cleanup;
+            }
+            if (out_fd >= 0) {
+                saved_stdout = dup(STDOUT_FILENO);
+                dup2(out_fd, STDOUT_FILENO);
+                close(out_fd);
+            }
+        }
+
+        ret = hop_builtin(cmds[0].argc, cmds[0].argv);
+
+        if (saved_stdin >= 0) {
+            dup2(saved_stdin, STDIN_FILENO);
+            close(saved_stdin);
+        }
+        if (saved_stdout >= 0) {
+            dup2(saved_stdout, STDOUT_FILENO);
+            close(saved_stdout);
+        }
+        if (feeder_pid > 0) {
+            waitpid(feeder_pid, NULL, 0);
+        }
+        if (dist_pid > 0) {
+            waitpid(dist_pid, NULL, 0);
+        }
+
+builtin_cleanup:
+        for (size_t c = 0; c < num_cmds; c++) {
+            free(cmds[c].argv);
+            free(cmds[c].input_files);
+            free(cmds[c].output_files);
+        }
+        free(cmds);
+        return ret;
+    }
+
+    //  Delegate pipeline execution to pipes module
     int ret = pipes_execute_pipeline(cmds, num_cmds);
 
-    /* Clean up allocated memory */
+    // free all memory
     for (size_t c = 0; c < num_cmds; c++) {
         free(cmds[c].argv);
         free(cmds[c].input_files);
         free(cmds[c].output_files);
     }
     free(cmds);
-
     return ret;
 }

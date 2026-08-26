@@ -3,6 +3,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "executor.h"
+#include "hop.h"
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -11,6 +12,7 @@ int main(int argc, char *argv[]) {
     printf("initiate C shell\n\n\n"); // Change name to Irish after assignment
 
     char *session_home_dir = getcwd(NULL, 0);
+    hop_init(session_home_dir);
     int runtime = 1;
     char *line = NULL;
     size_t n = 0;
