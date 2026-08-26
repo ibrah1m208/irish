@@ -2,6 +2,7 @@
 #include "pipes.h"
 #include "redirect.h"
 #include "hop.h"
+#include "reveal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -180,7 +181,8 @@ int executor_run(const Token *tokens, size_t count) {
     }
     cmds[cmd_idx].argv[cmds[cmd_idx].argc] = NULL;
 
-    if (num_cmds == 1 && cmds[0].argc > 0 && strcmp(cmds[0].argv[0], "hop") == 0) {
+    if (num_cmds == 1 && cmds[0].argc > 0 &&
+        (strcmp(cmds[0].argv[0], "hop") == 0 || strcmp(cmds[0].argv[0], "reveal") == 0)) {
         int ret = 0;
         int saved_stdout = -1;
         int saved_stdin = -1;
@@ -217,7 +219,11 @@ int executor_run(const Token *tokens, size_t count) {
             }
         }
 
-        ret = hop_builtin(cmds[0].argc, cmds[0].argv);
+        if (strcmp(cmds[0].argv[0], "hop") == 0) {
+            ret = hop_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "reveal") == 0) {
+            ret = reveal_builtin(cmds[0].argc, cmds[0].argv);
+        }
 
         if (saved_stdin >= 0) {
             dup2(saved_stdin, STDIN_FILENO);

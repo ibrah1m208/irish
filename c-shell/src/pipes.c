@@ -2,6 +2,7 @@
 #include "executor.h"
 #include "redirect.h"
 #include "hop.h"
+#include "reveal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,9 +67,11 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         const char *raw_name = cmds[i].argv[0];
         const char *cmd_name = (raw_name[0] == '%') ? raw_name + 1 : raw_name;
         int is_hop = (strcmp(cmd_name, "hop") == 0);
+        int is_reveal = (strcmp(cmd_name, "reveal") == 0);
+        int is_builtin = is_hop || is_reveal;
         char *resolved_path = NULL;
 
-        if (!is_hop) {
+        if (!is_builtin) {
             resolved_path = executor_resolve_path(raw_name);
             if (resolved_path == NULL) {
                 printf("cshell: command not found (%s)\n", cmd_name);
@@ -124,6 +127,11 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
             if (is_hop) {
                 int status = hop_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_reveal) {
+                int status = reveal_builtin(cmds[i].argc, cmds[i].argv);
                 _exit(status == 0 ? 0 : 1);
             }
 
