@@ -3,6 +3,8 @@
 #include "redirect.h"
 #include "hop.h"
 #include "reveal.h"
+#include "peek.h"
+#include "locate.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,7 +70,9 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         const char *cmd_name = (raw_name[0] == '%') ? raw_name + 1 : raw_name;
         int is_hop = (strcmp(cmd_name, "hop") == 0);
         int is_reveal = (strcmp(cmd_name, "reveal") == 0);
-        int is_builtin = is_hop || is_reveal;
+        int is_peek = (strcmp(cmd_name, "peek") == 0);
+        int is_locate = (strcmp(cmd_name, "locate") == 0);
+        int is_builtin = is_hop || is_reveal || is_peek || is_locate;
         char *resolved_path = NULL;
 
         if (!is_builtin) {
@@ -132,6 +136,16 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
             if (is_reveal) {
                 int status = reveal_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_peek) {
+                int status = peek_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_locate) {
+                int status = locate_builtin(cmds[i].argc, cmds[i].argv);
                 _exit(status == 0 ? 0 : 1);
             }
 
