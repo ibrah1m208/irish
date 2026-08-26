@@ -40,7 +40,7 @@ static int consume_double_quoted(const char *line, size_t *i, DynString *out) {
 
 static int consume_escape(const char *line, size_t *i, DynString *out) {
     (*i)++;
-    if (line[*i] == '\0') {
+    if (line[*i] == '\0' || line[*i] == '\n' || line[*i] == '\r') {
         return -1; 
     }
     ds_append_char(out, line[*i]);
