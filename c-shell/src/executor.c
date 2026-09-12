@@ -1,4 +1,5 @@
 #include "executor.h"
+#include "sequence.h"
 #include "pipes.h"
 #include "redirect.h"
 #include "hop.h"
@@ -107,11 +108,16 @@ int executor_run(const Token *tokens, size_t count) {
         return 0;
     }
 
-    /* For Part C: when processing commands with sequential (;) or background (&)
-     * operators, execute only the first command group and ignore the rest. */
+    /* For Part D1: if input contains sequential operator (;), delegate to sequence_run */
+    for (size_t i = 0; i < count; i++) {
+        if (tokens[i].type == TOK_SEMI) {
+            return sequence_run(tokens, count);
+        }
+    }
+
+    /* Process single command group (before any background & operator) */
     size_t group_len = 0;
     while (group_len < count &&
-           tokens[group_len].type != TOK_SEMI &&
            tokens[group_len].type != TOK_AMP) {
         group_len++;
     }
@@ -187,7 +193,8 @@ int executor_run(const Token *tokens, size_t count) {
         (strcmp(cmds[0].argv[0], "hop") == 0 ||
          strcmp(cmds[0].argv[0], "reveal") == 0 ||
          strcmp(cmds[0].argv[0], "peek") == 0 ||
-         strcmp(cmds[0].argv[0], "locate") == 0)) {
+         strcmp(cmds[0].argv[0], "locate") == 0 ||
+         strcmp(cmds[0].argv[0], "exit") == 0)) {
         int ret = 0;
         int saved_stdout = -1;
         int saved_stdin = -1;
@@ -232,6 +239,22 @@ int executor_run(const Token *tokens, size_t count) {
             ret = peek_builtin(cmds[0].argc, cmds[0].argv);
         } else if (strcmp(cmds[0].argv[0], "locate") == 0) {
             ret = locate_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "exit") == 0) {
+            if (saved_stdin >= 0) {
+                dup2(saved_stdin, STDIN_FILENO);
+                close(saved_stdin);
+            }
+            if (saved_stdout >= 0) {
+                dup2(saved_stdout, STDOUT_FILENO);
+                close(saved_stdout);
+            }
+            for (size_t c = 0; c < num_cmds; c++) {
+                free(cmds[c].argv);
+                free(cmds[c].input_files);
+                free(cmds[c].output_files);
+            }
+            free(cmds);
+            exit(0);
         }
 
         if (saved_stdin >= 0) {

@@ -38,6 +38,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
     pid_t *child_pids = malloc((num_cmds * 3 + 1) * sizeof(pid_t));
     size_t num_pids = 0;
+    int has_error = 0;
 
     for (size_t i = 0; i < num_cmds; i++) {
         if (cmds[i].argc == 0) {
@@ -48,6 +49,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         int in_fd = -1;
         pid_t feeder_pid = -1;
         if (redirect_setup_input(cmds[i].input_files, cmds[i].num_inputs, &in_fd, &feeder_pid) < 0) {
+            has_error = 1;
             continue;
         }
         if (feeder_pid > 0 && child_pids) {
@@ -59,6 +61,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         pid_t dist_pid = -1;
         if (redirect_setup_output(cmds[i].output_files, cmds[i].num_outputs, &out_fd, &dist_pid) < 0) {
             if (in_fd >= 0) close(in_fd);
+            has_error = 1;
             continue;
         }
         if (dist_pid > 0 && child_pids) {
@@ -72,7 +75,8 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         int is_reveal = (strcmp(cmd_name, "reveal") == 0);
         int is_peek = (strcmp(cmd_name, "peek") == 0);
         int is_locate = (strcmp(cmd_name, "locate") == 0);
-        int is_builtin = is_hop || is_reveal || is_peek || is_locate;
+        int is_exit = (strcmp(cmd_name, "exit") == 0);
+        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit;
         char *resolved_path = NULL;
 
         if (!is_builtin) {
@@ -81,6 +85,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
                 printf("cshell: command not found (%s)\n", cmd_name);
                 if (in_fd >= 0) close(in_fd);
                 if (out_fd >= 0) close(out_fd);
+                has_error = 1;
                 continue;
             }
         }
@@ -94,6 +99,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
             if (resolved_path) free(resolved_path);
             if (in_fd >= 0) close(in_fd);
             if (out_fd >= 0) close(out_fd);
+            has_error = 1;
             continue;
         } else if (cmd_pid == 0) {
             if (in_fd >= 0) {
@@ -149,6 +155,10 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
                 _exit(status == 0 ? 0 : 1);
             }
 
+            if (is_exit) {
+                _exit(0);
+            }
+
             execv(resolved_path, cmds[i].argv);
             perror("execv");
             _exit(1);
@@ -175,5 +185,5 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         }
         free(child_pids);
     }
-    return 0;
+    return has_error ? -1 : 0;
 }
