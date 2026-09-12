@@ -12,6 +12,8 @@ c-shell/shell.out
 c-shell/shell
 xv6/kernel.img
 xv6/fs.img
+.cshell_frecency
+
 
 # Compiler Files
 *.o

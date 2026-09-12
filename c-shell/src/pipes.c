@@ -7,6 +7,7 @@
 #include "locate.h"
 #include "activities.h"
 #include "resume.h"
+#include "ping.h"
 #include "term_control.h"
 
 #include <stdio.h>
@@ -84,7 +85,8 @@ int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *c
         int is_exit = (strcmp(cmd_name, "exit") == 0);
         int is_activities = (strcmp(cmd_name, "activities") == 0);
         int is_resume = (strcmp(cmd_name, "resume") == 0);
-        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit || is_activities || is_resume;
+        int is_ping = (strcmp(cmd_name, "ping") == 0);
+        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit || is_activities || is_resume || is_ping;
         char *resolved_path = NULL;
 
         if (!is_builtin) {
@@ -191,6 +193,11 @@ int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *c
 
             if (is_resume) {
                 int status = resume_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_ping) {
+                int status = ping_builtin(cmds[i].argc, cmds[i].argv);
                 _exit(status == 0 ? 0 : 1);
             }
 
