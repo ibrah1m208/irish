@@ -3,11 +3,9 @@
 
 #include "lexer.h"
 #include <stddef.h>
-/* Resolve a command name to its executable path by
-checking the literal path, cwd and $PATH
-*/
-char *executor_resolve_path(const char *name);
 
+char *executor_resolve_path(const char *name);
 int executor_run(const Token *tokens, size_t count);
+int executor_execute_group(const Token *tokens, size_t count, int is_bg);
 
 #endif /* EXECUTOR_H */

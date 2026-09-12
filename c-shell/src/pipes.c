@@ -5,14 +5,20 @@
 #include "reveal.h"
 #include "peek.h"
 #include "locate.h"
+#include "activities.h"
+#include "resume.h"
+#include "term_control.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
-int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
+int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *cmd_line) {
     if (cmds == NULL || num_cmds == 0) {
         return 0;
     }
@@ -39,13 +45,15 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
     pid_t *child_pids = malloc((num_cmds * 3 + 1) * sizeof(pid_t));
     size_t num_pids = 0;
     int has_error = 0;
+    pid_t pgid = 0;
+
+    term_block_sigchld();
 
     for (size_t i = 0; i < num_cmds; i++) {
         if (cmds[i].argc == 0) {
             continue;
         }
 
-        // Setup Input Redirection
         int in_fd = -1;
         pid_t feeder_pid = -1;
         if (redirect_setup_input(cmds[i].input_files, cmds[i].num_inputs, &in_fd, &feeder_pid) < 0) {
@@ -56,7 +64,6 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
             child_pids[num_pids++] = feeder_pid;
         }
 
-        //Output Redirection
         int out_fd = -1;
         pid_t dist_pid = -1;
         if (redirect_setup_output(cmds[i].output_files, cmds[i].num_outputs, &out_fd, &dist_pid) < 0) {
@@ -68,7 +75,6 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
             child_pids[num_pids++] = dist_pid;
         }
 
-        // Resolve command path
         const char *raw_name = cmds[i].argv[0];
         const char *cmd_name = (raw_name[0] == '%') ? raw_name + 1 : raw_name;
         int is_hop = (strcmp(cmd_name, "hop") == 0);
@@ -76,7 +82,9 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         int is_peek = (strcmp(cmd_name, "peek") == 0);
         int is_locate = (strcmp(cmd_name, "locate") == 0);
         int is_exit = (strcmp(cmd_name, "exit") == 0);
-        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit;
+        int is_activities = (strcmp(cmd_name, "activities") == 0);
+        int is_resume = (strcmp(cmd_name, "resume") == 0);
+        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit || is_activities || is_resume;
         char *resolved_path = NULL;
 
         if (!is_builtin) {
@@ -92,7 +100,6 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
         cmds[i].argv[0] = (char *)cmd_name;
 
-        // Fork command process
         pid_t cmd_pid = fork();
         if (cmd_pid < 0) {
             perror("fork");
@@ -102,6 +109,28 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
             has_error = 1;
             continue;
         } else if (cmd_pid == 0) {
+            if (i == 0) {
+                setpgid(0, 0);
+            } else {
+                setpgid(0, pgid);
+            }
+
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTSTP, SIG_DFL);
+            signal(SIGTTOU, SIG_DFL);
+            signal(SIGTTIN, SIG_DFL);
+            signal(SIGCHLD, SIG_DFL);
+
+            term_unblock_sigchld();
+
+            if (is_bg && in_fd < 0 && i == 0) {
+                int devnull = open("/dev/null", O_RDONLY);
+                if (devnull >= 0) {
+                    dup2(devnull, STDIN_FILENO);
+                    close(devnull);
+                }
+            }
+
             if (in_fd >= 0) {
                 if (dup2(in_fd, STDIN_FILENO) < 0) {
                     perror("dup2");
@@ -130,7 +159,7 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
             if (pipe_fds) {
                 for (size_t k = 0; k < num_cmds - 1; k++) {
-                    close(pipe_fds[k][0]); // close all pipelines
+                    close(pipe_fds[k][0]);
                     close(pipe_fds[k][1]);
                 }
             }
@@ -155,6 +184,16 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
                 _exit(status == 0 ? 0 : 1);
             }
 
+            if (is_activities) {
+                int status = activities_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_resume) {
+                int status = resume_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
             if (is_exit) {
                 _exit(0);
             }
@@ -163,6 +202,13 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
             perror("execv");
             _exit(1);
         } else {
+            if (i == 0) {
+                pgid = cmd_pid;
+                setpgid(cmd_pid, pgid);
+            } else {
+                setpgid(cmd_pid, pgid);
+            }
+
             if (child_pids) child_pids[num_pids++] = cmd_pid;
             if (resolved_path) free(resolved_path);
             if (in_fd >= 0) close(in_fd);
@@ -172,21 +218,61 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
 
     if (pipe_fds) {
         for (size_t k = 0; k < num_cmds - 1; k++) {
-            close(pipe_fds[k][0]); // close all parent pipelines
+            close(pipe_fds[k][0]);
             close(pipe_fds[k][1]);
         }
         free(pipe_fds);
     }
 
+    if (is_bg) {
+        Job *job = job_add(pgid, cmd_line, JOB_RUNNING);
+        if (job != NULL) {
+            for (size_t k = 0; k < num_pids; k++) {
+                const char *cname = (k < num_cmds) ? cmds[k].argv[0] : "feeder";
+                job_add_proc(job, child_pids[k], cname);
+            }
+            printf("[%d] %d\n", job->job_number, (int)pgid);
+            fflush(stdout);
+        }
+        if (child_pids) free(child_pids);
+        term_unblock_sigchld();
+        return 0;
+    }
+
+    term_give_to_pgid(pgid);
+
+    int job_stopped = 0;
     if (child_pids) {
         for (size_t k = 0; k < num_pids; k++) {
             int status = 0;
-            waitpid(child_pids[k], &status, 0);
-            if (WIFSIGNALED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
+            waitpid(child_pids[k], &status, WUNTRACED);
+            if (WIFSTOPPED(status)) {
+                job_stopped = 1;
+            } else if (WIFSIGNALED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
                 has_error = 1;
             }
         }
-        free(child_pids);
     }
+
+    if (job_stopped) {
+        Job *job = job_add(pgid, cmd_line, JOB_STOPPED);
+        if (job != NULL) {
+            for (size_t k = 0; k < num_pids; k++) {
+                const char *cname = (k < num_cmds) ? cmds[k].argv[0] : "proc";
+                job_add_proc(job, child_pids[k], cname);
+            }
+            printf("[%d] + Stopped    %s\n", job->job_number, job->cmd_line);
+            fflush(stdout);
+        }
+    }
+
+    term_reclaim();
+    term_unblock_sigchld();
+
+    if (child_pids) free(child_pids);
     return has_error ? -1 : 0;
+}
+
+int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
+    return pipes_execute(cmds, num_cmds, 0, NULL);
 }

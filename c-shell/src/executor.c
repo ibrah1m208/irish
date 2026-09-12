@@ -7,6 +7,10 @@
 #include "reveal.h"
 #include "peek.h"
 #include "locate.h"
+#include "activities.h"
+#include "resume.h"
+#include "term_control.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,10 +53,9 @@ char *executor_resolve_path(const char *name) {
     int force_path_search = 0;
     if (name[0] == '%') {
         force_path_search = 1;
-        name = name + 1;  /* advance past the '%' */
+        name = name + 1;
     }
 
-    /* Rule 1: if name contains '/', treat as literal path (unless '%' forced PATH search) */
     if (!force_path_search && strchr(name, '/') != NULL) {
         if (is_executable(name)) {
             return strdup(name);
@@ -60,7 +63,6 @@ char *executor_resolve_path(const char *name) {
         return NULL;
     }
 
-    /* Rule 2: check CWD first, unless '%' forced us to skip it */
     if (!force_path_search) {
         char cwd[4096];
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
@@ -74,7 +76,6 @@ char *executor_resolve_path(const char *name) {
         }
     }
 
-    /* Rule 3: search $PATH, in order */
     const char *path_env = getenv("PATH");
     if (path_env == NULL) {
         return NULL;
@@ -101,35 +102,14 @@ char *executor_resolve_path(const char *name) {
     }
 
     free(path_copy);
-    return NULL;  /* Rule 4: not found anywhere */
+    return NULL;
 }
 
-int executor_run(const Token *tokens, size_t count) {
-    if (tokens == NULL || count == 0) {
+int executor_execute_group(const Token *tokens, size_t group_len, int is_bg) {
+    if (tokens == NULL || group_len == 0) {
         return 0;
     }
 
-    /* For Part D1: if input contains sequential operator (;), delegate to sequence_run */
-    for (size_t i = 0; i < count; i++) {
-        if (tokens[i].type == TOK_SEMI) {
-            return sequence_run(tokens, count);
-        }
-    }
-
-    /* For Part D2: if input contains background operator (&), delegate to bg_run */
-    for (size_t i = 0; i < count; i++) {
-        if (tokens[i].type == TOK_AMP) {
-            return bg_run(tokens, count);
-        }
-    }
-
-    size_t group_len = count;
-
-    if (group_len == 0) {
-        return 0;
-    }
-
-    /* Count number of pipeline stages */
     size_t num_cmds = 1;
     for (size_t i = 0; i < group_len; i++) {
         if (tokens[i].type == TOK_PIPE) {
@@ -137,7 +117,6 @@ int executor_run(const Token *tokens, size_t count) {
         }
     }
 
-    /* Allocate commands array */
     SingleCommand *cmds = calloc(num_cmds, sizeof(SingleCommand));
     if (!cmds) {
         return -1;
@@ -161,7 +140,6 @@ int executor_run(const Token *tokens, size_t count) {
         cmds[c].num_outputs = 0;
     }
 
-    /* Parse tokens into commands */
     size_t cmd_idx = 0;
     for (size_t i = 0; i < group_len; i++) {
         if (tokens[i].type == TOK_PIPE) {
@@ -192,11 +170,28 @@ int executor_run(const Token *tokens, size_t count) {
     }
     cmds[cmd_idx].argv[cmds[cmd_idx].argc] = NULL;
 
-    if (num_cmds == 1 && cmds[0].argc > 0 &&
+    char cmd_line[512] = "";
+    size_t cur_len = 0;
+    for (size_t t = 0; t < group_len; t++) {
+        if (tokens[t].value) {
+            size_t vlen = strlen(tokens[t].value);
+            if (cur_len + vlen + 2 < sizeof(cmd_line)) {
+                if (cur_len > 0) {
+                    cmd_line[cur_len++] = ' ';
+                }
+                strcpy(cmd_line + cur_len, tokens[t].value);
+                cur_len += vlen;
+            }
+        }
+    }
+
+    if (!is_bg && num_cmds == 1 && cmds[0].argc > 0 &&
         (strcmp(cmds[0].argv[0], "hop") == 0 ||
          strcmp(cmds[0].argv[0], "reveal") == 0 ||
          strcmp(cmds[0].argv[0], "peek") == 0 ||
          strcmp(cmds[0].argv[0], "locate") == 0 ||
+         strcmp(cmds[0].argv[0], "activities") == 0 ||
+         strcmp(cmds[0].argv[0], "resume") == 0 ||
          strcmp(cmds[0].argv[0], "exit") == 0)) {
         int ret = 0;
         int saved_stdout = -1;
@@ -242,7 +237,12 @@ int executor_run(const Token *tokens, size_t count) {
             ret = peek_builtin(cmds[0].argc, cmds[0].argv);
         } else if (strcmp(cmds[0].argv[0], "locate") == 0) {
             ret = locate_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "activities") == 0) {
+            ret = activities_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "resume") == 0) {
+            ret = resume_builtin(cmds[0].argc, cmds[0].argv);
         } else if (strcmp(cmds[0].argv[0], "exit") == 0) {
+            job_kill_all_sighup();
             if (saved_stdin >= 0) {
                 dup2(saved_stdin, STDIN_FILENO);
                 close(saved_stdin);
@@ -285,10 +285,8 @@ builtin_cleanup:
         return ret;
     }
 
-    //  Delegate pipeline execution to pipes module
-    int ret = pipes_execute_pipeline(cmds, num_cmds);
+    int ret = pipes_execute(cmds, num_cmds, is_bg, cmd_line);
 
-    // free all memory
     for (size_t c = 0; c < num_cmds; c++) {
         free(cmds[c].argv);
         free(cmds[c].input_files);
@@ -296,4 +294,24 @@ builtin_cleanup:
     }
     free(cmds);
     return ret;
+}
+
+int executor_run(const Token *tokens, size_t count) {
+    if (tokens == NULL || count == 0) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (tokens[i].type == TOK_SEMI) {
+            return sequence_run(tokens, count);
+        }
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (tokens[i].type == TOK_AMP) {
+            return bg_run(tokens, count);
+        }
+    }
+
+    return executor_execute_group(tokens, count, 0);
 }

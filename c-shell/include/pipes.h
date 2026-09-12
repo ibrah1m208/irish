@@ -13,8 +13,7 @@ typedef struct {
     size_t num_outputs;
 } SingleCommand;
 
-/* Executes a pipeline of commands with input/output redirections.
- * Handles pipe creation, process forking, fd wiring, and waiting for all children. */
+int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *cmd_line);
 int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds);
 
 #endif /* PIPES_H */
