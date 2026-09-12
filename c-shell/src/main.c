@@ -4,6 +4,7 @@
 #include "parser.h"
 #include "executor.h"
 #include "hop.h"
+#include "bg_exec.h"
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -13,6 +14,7 @@ int main(int argc, char *argv[]) {
 
     char *session_home_dir = getcwd(NULL, 0);
     hop_init(session_home_dir);
+    bg_init();
     int runtime = 1;
     char *line = NULL;
     size_t n = 0;

@@ -1,5 +1,6 @@
 #include "executor.h"
 #include "sequence.h"
+#include "bg_exec.h"
 #include "pipes.h"
 #include "redirect.h"
 #include "hop.h"
@@ -115,12 +116,14 @@ int executor_run(const Token *tokens, size_t count) {
         }
     }
 
-    /* Process single command group (before any background & operator) */
-    size_t group_len = 0;
-    while (group_len < count &&
-           tokens[group_len].type != TOK_AMP) {
-        group_len++;
+    /* For Part D2: if input contains background operator (&), delegate to bg_run */
+    for (size_t i = 0; i < count; i++) {
+        if (tokens[i].type == TOK_AMP) {
+            return bg_run(tokens, count);
+        }
     }
+
+    size_t group_len = count;
 
     if (group_len == 0) {
         return 0;

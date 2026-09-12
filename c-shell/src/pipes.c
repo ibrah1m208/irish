@@ -182,6 +182,9 @@ int pipes_execute_pipeline(SingleCommand *cmds, size_t num_cmds) {
         for (size_t k = 0; k < num_pids; k++) {
             int status = 0;
             waitpid(child_pids[k], &status, 0);
+            if (WIFSIGNALED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
+                has_error = 1;
+            }
         }
         free(child_pids);
     }
