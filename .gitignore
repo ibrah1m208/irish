@@ -2,7 +2,7 @@
 /self/
 *.tmp
 01.md
-/test/
+test*
 AI.md
 
 # Build outputs
