@@ -10,6 +10,8 @@
 #include "activities.h"
 #include "resume.h"
 #include "ping.h"
+#include "spy.h"
+#include "snoop.h"
 #include "term_control.h"
 
 #include <stdio.h>
@@ -194,6 +196,8 @@ int executor_execute_group(const Token *tokens, size_t group_len, int is_bg) {
          strcmp(cmds[0].argv[0], "activities") == 0 ||
          strcmp(cmds[0].argv[0], "resume") == 0 ||
          strcmp(cmds[0].argv[0], "ping") == 0 ||
+         strcmp(cmds[0].argv[0], "spy") == 0 ||
+         strcmp(cmds[0].argv[0], "snoop") == 0 ||
          strcmp(cmds[0].argv[0], "exit") == 0)) {
         int ret = 0;
         int saved_stdout = -1;
@@ -245,6 +249,10 @@ int executor_execute_group(const Token *tokens, size_t group_len, int is_bg) {
             ret = resume_builtin(cmds[0].argc, cmds[0].argv);
         } else if (strcmp(cmds[0].argv[0], "ping") == 0) {
             ret = ping_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "spy") == 0) {
+            ret = spy_builtin(cmds[0].argc, cmds[0].argv);
+        } else if (strcmp(cmds[0].argv[0], "snoop") == 0) {
+            ret = snoop_builtin(cmds[0].argc, cmds[0].argv);
         } else if (strcmp(cmds[0].argv[0], "exit") == 0) {
             job_kill_all_sighup();
             if (saved_stdin >= 0) {

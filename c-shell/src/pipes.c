@@ -8,6 +8,8 @@
 #include "activities.h"
 #include "resume.h"
 #include "ping.h"
+#include "spy.h"
+#include "snoop.h"
 #include "term_control.h"
 
 #include <stdio.h>
@@ -86,7 +88,9 @@ int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *c
         int is_activities = (strcmp(cmd_name, "activities") == 0);
         int is_resume = (strcmp(cmd_name, "resume") == 0);
         int is_ping = (strcmp(cmd_name, "ping") == 0);
-        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit || is_activities || is_resume || is_ping;
+        int is_spy = (strcmp(cmd_name, "spy") == 0);
+        int is_snoop = (strcmp(cmd_name, "snoop") == 0);
+        int is_builtin = is_hop || is_reveal || is_peek || is_locate || is_exit || is_activities || is_resume || is_ping || is_spy || is_snoop;
         char *resolved_path = NULL;
 
         if (!is_builtin) {
@@ -198,6 +202,16 @@ int pipes_execute(SingleCommand *cmds, size_t num_cmds, int is_bg, const char *c
 
             if (is_ping) {
                 int status = ping_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_spy) {
+                int status = spy_builtin(cmds[i].argc, cmds[i].argv);
+                _exit(status == 0 ? 0 : 1);
+            }
+
+            if (is_snoop) {
+                int status = snoop_builtin(cmds[i].argc, cmds[i].argv);
                 _exit(status == 0 ? 0 : 1);
             }
 

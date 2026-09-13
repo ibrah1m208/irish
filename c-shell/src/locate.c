@@ -27,10 +27,7 @@ static int is_executable(const char *path)
 
 static void print_absolute(const char *path)
 {
-    char abs[PATH_MAX];
-
-    if (realpath(path, abs) != NULL)
-        puts(abs);
+    puts(path);
 }
 
 int locate_builtin(int argc, char **argv)
@@ -83,11 +80,14 @@ int locate_builtin(int argc, char **argv)
 
             while (dir)
             {
-                snprintf(candidate,
-                         sizeof(candidate),
-                         "%s/%s",
-                         dir,
-                         argv[i]);
+                if (dir[0] == '/')
+                {
+                    snprintf(candidate, sizeof(candidate), "%s/%s", dir, argv[i]);
+                }
+                else
+                {
+                    snprintf(candidate, sizeof(candidate), "%s/%s/%s", cwd, dir, argv[i]);
+                }
 
                 if (is_executable(candidate))
                 {
