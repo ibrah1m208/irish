@@ -19,7 +19,7 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
-	clear
+	@-clear 2>/dev/null || true
 	@echo "Built $(TARGET)"
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
@@ -34,7 +34,11 @@ clean:
 .PHONY: all clean help
 
 help:
-	@echo "C-Shell Build System"
-	@echo "  make all    - Build shell.out"
-	@echo "  make clean  - Remove build artifacts"
-	@echo 2025117012 - Mohammed Ibrahim Bin Faisal
+	@echo "========================================================================"
+	@echo "  C-Shell Build System"
+	@echo "========================================================================"
+	@echo "  make all    - Compile and link ./shell.out"
+	@echo "  make clean  - Remove obj/ directory and shell.out"
+	@echo "  make help   - Show this help message"
+	@echo "========================================================================"
+	@echo "2025117012 - Mohammed Ibrahim Bin Faisal"
