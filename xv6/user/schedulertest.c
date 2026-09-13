@@ -7,15 +7,14 @@
 // Number of test processes to launch
 #define NPROCS 5
 
-// Volatile spin loop to consume CPU cycles
+// Busy-spin using uptime to consume a precise number of CPU ticks
 void
-spin(int n)
+spin_ticks(int target_ticks)
 {
+  int start = uptime();
   volatile int x = 0;
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < 100000; j++) {
-      x += (i * j + 1);
-    }
+  while (uptime() - start < target_ticks) {
+    x++;
   }
 }
 
@@ -42,20 +41,20 @@ main(void)
     if (pid == 0) {
       // Child workload
       if (i == 0 || i == 1) {
-        // CPU-bound: sustained computation without yielding
-        for (int b = 0; b < 6; b++) {
-          spin(25);
-        }
+        // CPU-bound: runs heavy computation for 45 continuous ticks
+        // Exercises Q0 (1), Q1 (4), Q2 (8), Q3 (16), and spans across 48-tick priority boost
+        spin_ticks(45);
       } else if (i == 2 || i == 3) {
-        // I/O-bound: short CPU burst then voluntary sleep
-        for (int b = 0; b < 10; b++) {
-          spin(2);
+        // I/O-bound: short burst (<1 tick) then voluntary sleep
+        // Stays in Queue 0
+        for (int b = 0; b < 20; b++) {
+          for (volatile int k = 0; k < 50000; k++);
           sleep(1);
         }
       } else {
-        // Mixed: medium CPU burst then voluntary sleep
-        for (int b = 0; b < 5; b++) {
-          spin(10);
+        // Mixed: runs 2 ticks (demotes to Q1) then sleeps before exhausting Q1 (slice=4)
+        for (int b = 0; b < 8; b++) {
+          spin_ticks(2);
           sleep(2);
         }
       }
@@ -69,7 +68,7 @@ main(void)
   int total_waiting = 0;
   int total_response = 0;
 
-  printf("\nPID\tType\t\t\tTurnaround\tWaiting\tResponse\n");
+  printf("\nPID\tType\t\tTurnaround\tWaiting\tResponse\n");
   printf("----------------------------------------------------------------\n");
 
   for (int i = 0; i < NPROCS; i++) {
@@ -92,8 +91,7 @@ main(void)
       }
     }
 
-    printf("PID %d (%s): turnaround=%d waiting=%d response=%d\n",
-           pid, type, turnaround, wtime, stime);
+    printf("%d\t%s\t%d\t\t%d\t%d\n", pid, type, turnaround, wtime, stime);
   }
 
   printf("----------------------------------------------------------------\n");

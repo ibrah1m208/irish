@@ -662,6 +662,12 @@ scheduler(void)
             best->stime = ticks;
             release(&tickslock);
           }
+          if (best->pid >= 3) {
+            acquire(&tickslock);
+            uint cur_t = ticks;
+            release(&tickslock);
+            printk("[MLFQ_TRACE] %d %d %d\n", cur_t, best->pid, best->mlfq_queue);
+          }
           best->state = RUNNING;
           c->proc = best;
           swtch(&c->context, &best->context);
