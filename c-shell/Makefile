@@ -19,6 +19,7 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
+	clear
 	@echo "Built $(TARGET)"
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
