@@ -1,6 +1,6 @@
 # Mini Project 1: C-Shell & xv6 MLFQ Scheduler
 
-Operating Systems Mini Project 1 (IIIT Hyderabad).  
+Operating Systems Mini Project 1 (COMPLETED🥳🥳🥳).  
 This project comprises two major components:
 1. **C-Shell**: A fully POSIX-compliant Unix shell supporting lexical analysis, command pipelines, I/O redirection, background job management, job control, signals, and advanced system diagnostics (`spy`, `snoop`).
 2. **MLFQ Scheduler**: An implementation of a n-level (n = 4) Multi-Level Feedback Queue scheduling policy inside the xv6-riscv kernel, including strict priority preemption, anti-starvation boosting, cross-scheduler benchmarking, and empirical analysis against Round-Robin and FIFO.
